@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spirit World Escape</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'Rajdhani', sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: none; /* Hidden by default until orientation check */
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Screens */
+        .ui-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 20;
+            color: white;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8vh;
+            color: #00f3ff;
+            text-shadow: 0 0 20px #00f3ff;
+            margin: 0 0 20px 0;
+            text-align: center;
+        }
+
+        .btn {
+            background: rgba(0, 243, 255, 0.1);
+            border: 2px solid #00f3ff;
+            color: #00f3ff;
+            padding: 10px 40px;
+            font-size: 4vh;
+            font-family: 'Orbitron', sans-serif;
+            margin: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            min-width: 200px;
+            text-align: center;
+        }
+        .btn:active { background: #00f3ff; color: black; }
+
+        .btn-red { border-color: #ff0055; color: #ff0055; background: rgba(255,0,85,0.1); }
+        .btn-red:active { background: #ff0055; color: white; }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: calc(100% - 40px);
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .hud-text {
+            font-family: 'Orbitron', sans-serif;
+            color: white;
+            font-size: 3vh;
+            pointer-events: auto;
+        }
+
+        /* Touch Controls */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            z-index: 15;
+        }
+        .touch-btn {
+            width: 12vh;
+            height: 12vh;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5vh;
+            color: white;
+            margin: 0 10px;
+        }
+        .touch-btn:active { background: rgba(0, 243, 255, 0.3); border-color: #00f3ff; }
+        .shift-btn { border-radius: 15px; width: 16vh; border-color: #ff0055; }
+        .shift-btn:active { background: rgba(255, 0, 85, 0.3); }
+
+        .control-group { display: flex; align-items: flex-end; }
+
+        /* Landscape Warning */
+        #landscape-warning {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+        
+        /* CSS Logic for Orientation */
+        @media screen and (orientation: landscape) {
+            #landscape-warning { display: none; }
+            #game-container { display: block; }
+        }
+        @media screen and (orientation: portrait) {
+            #landscape-warning { display: flex; }
+            #game-container { display: none; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Orientation Warning -->
+    <div id="landscape-warning">
+        <h1 style="color: white; font-size: 5vh;">ROTATE DEVICE</h1>
+        <p style="font-size: 2.5vh; color: #aaa;">This game requires Landscape Mode.</p>
+    </div>
+
+    <div id="game-container">
+        <canvas id="canvas"></canvas>
+
+        <!-- Loading -->
+        <div id="loading-screen" class="ui-screen">
+            <h1>LOADING...</h1>
+            <div style="width: 50%; height: 5px; background: #333;">
+                <div id="loader-bar" style="width: 0%; height: 100%; background: #00f3ff; transition: width 0.2s;"></div>
+            </div>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="main-menu" class="ui-screen hidden">
+            <h1>SPIRIT WORLD</h1>
+            <div class="btn" onclick="Game.startGame()">CONTINUE LEVEL <span id="menu-lvl">1</span></div>
+            <div class="btn" onclick="UI.showSettings()">SETTINGS</div>
+        </div>
+
+        <!-- Settings -->
+        <div id="settings-menu" class="ui-screen hidden">
+            <h2>SETTINGS</h2>
+            <div class="btn-red" onclick="Game.resetProgress()">RESET PROGRESS</div>
+            <div class="btn" onclick="UI.showMain()">BACK</div>
+        </div>
+
+        <!-- Msg Screen -->
+        <div id="msg-screen" class="ui-screen hidden">
+            <h1 id="msg-title">CLEARED</h1>
+            <div class="btn" id="msg-btn" onclick="Game.nextLevel()">NEXT</div>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud" class="hidden">
+            <div class="hud-text">LEVEL <span id="hud-lvl">1</span></div>
+            <div class="hud-text" onclick="location.reload()">MENU</div>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls" class="hidden">
+            <div class="control-group">
+                <div class="touch-btn" id="btn-left">←</div>
+                <div class="touch-btn" id="btn-right">→</div>
+            </div>
+            <div class="control-group">
+                <div class="touch-btn shift-btn" id="btn-shift">SHIFT</div>
+                <div class="touch-btn" id="btn-jump">↑</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- UI SYSTEM (Re-added) ---
+const UI = {
+    hideAll: function() {
+        document.querySelectorAll('.ui-screen').forEach(el => el.classList.add('hidden'));
+    },
+    showMain: function() {
+        this.hideAll();
+        document.getElementById('main-menu').classList.remove('hidden');
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('controls').classList.add('hidden');
+    },
+    showSettings: function() {
+        this.hideAll();
+        document.getElementById('settings-menu').classList.remove('hidden');
+    },
+    showHUD: function() {
+        this.hideAll();
+        document.getElementById('hud').classList.remove('hidden');
+        document.getElementById('controls').classList.remove('hidden');
+    },
+    showMsg: function(title) {
+        document.getElementById('msg-title').innerText = title;
+        document.getElementById('msg-screen').classList.remove('hidden');
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('controls').classList.add('hidden');
+    }
+};
+
+// --- AUDIO SYSTEM ---
+const AudioSys = {
+    ctx: null,
+    init: function() {
+        window.AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+    },
+    playTone: function(freq, type, dur) {
+        if(!this.ctx) return;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type;
+        o.frequency.value = freq;
+        g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(); o.stop(this.ctx.currentTime + dur);
+    },
+    jump: () => AudioSys.playTone(300, 'square', 0.1),
+    shift: () => { AudioSys.playTone(800, 'sawtooth', 0.1); setTimeout(()=>AudioSys.playTone(1200,'square',0.1),50); },
+    die: () => AudioSys.playTone(100, 'sawtooth', 0.4),
+    win: () => { AudioSys.playTone(400,'sine',0.2); setTimeout(()=>AudioSys.playTone(600,'sine',0.4),200); }
+};
+
+// --- GAME LOGIC ---
+const Game = {
+    canvas: document.getElementById('canvas'),
+    ctx: document.getElementById('canvas').getContext('2d'),
+    state: 'LOAD',
+    width: 0, height: 0,
+    lvl: 1,
+    dim: 'REAL',
+    shiftCd: 0,
+    cam: {x:0, y:0},
+    player: {x:100, y:100, w:30, h:50, vx:0, vy:0, grounded:false, dead:false},
+    platforms: [], particles: [],
+    exit: {x:0,y:0,w:40,h:60},
+    grav: 0.8, fric: 0.85, spd: 1.5, jmp: -15,
+
+    init: function() {
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        let p = 0;
+        let int = setInterval(() => {
+            p+=20; // Faster load
+            document.getElementById('loader-bar').style.width = p+'%';
+            if(p>=100) {
+                clearInterval(int);
+                this.loadProgress();
+                UI.showMain();
+            }
+        }, 100);
+
+        Input.init();
+        requestAnimationFrame(this.loop.bind(this));
+    },
+
+    resize: function() {
+        this.width = this.canvas.width = window.innerWidth;
+        this.height = this.canvas.height = window.innerHeight;
+    },
+
+    loadProgress: function() {
+        const saved = localStorage.getItem('spiritLevel');
+        if(saved) this.lvl = parseInt(saved);
+        document.getElementById('menu-lvl').innerText = this.lvl;
+    },
+
+    saveProgress: function() {
+        localStorage.setItem('spiritLevel', this.lvl);
+    },
+
+    resetProgress: function() {
+        localStorage.removeItem('spiritLevel');
+        this.lvl = 1;
+        this.loadProgress();
+        UI.showMain();
+    },
+
+    startGame: function() {
+        if(!AudioSys.ctx) AudioSys.init();
+        if(AudioSys.ctx && AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+        this.loadLevel(this.lvl);
+    },
+
+    loadLevel: function(n) {
+        this.lvl = n;
+        this.saveProgress();
+        document.getElementById('hud-lvl').innerText = n;
+        this.state = 'PLAY';
+        this.dim = 'REAL';
+        this.player = {x:50, y:300, w:30, h:50, vx:0, vy:0, grounded:false, dead:false};
+        this.cam = {x:0, y:0};
+        LevelGen.create(n);
+        UI.showHUD();
+    },
+
+    nextLevel: function() {
+        this.loadLevel(this.lvl + 1);
+    },
+
+    shift: function() {
+        if(this.shiftCd > 0 || this.state !== 'PLAY') return;
+        this.dim = this.dim === 'REAL' ? 'SPIRIT' : 'REAL';
+        this.shiftCd = 30;
+        AudioSys.shift();
+        this.cam.y += 10;
+        for(let i=0; i<20; i++) this.spawnPart(this.player.x, this.player.y, (this.dim==='SPIRIT'?'#0ff':'#f05'));
+    },
+
+    spawnPart: function(x, y, c) {
+        this.particles.push({x:x, y:y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10, life:30, c:c});
+    },
+
+    update: function() {
+        if(this.state !== 'PLAY') return;
+        
+        if(Input.k.l) this.player.vx -= this.spd;
+        if(Input.k.r) this.player.vx += this.spd;
+        if(Input.k.u && this.player.grounded) { this.player.vy = this.jmp; this.player.grounded=false; AudioSys.jump(); }
+        if(Input.k.s) { this.shift(); Input.k.s=false; }
+        if(this.shiftCd > 0) this.shiftCd--;
+
+        this.player.vx *= this.fric;
+        this.player.vy += this.grav;
+        this.player.x += this.player.vx;
+        this.player.y += this.player.vy;
+
+        if(this.player.y > this.height + 200) this.die();
+
+        this.player.grounded = false;
+        for(let p of this.platforms) {
+            if(p.r !== 'BOTH' && p.r !== this.dim) continue;
+            
+            if(this.player.x < p.x+p.w && this.player.x+this.player.w > p.x &&
+               this.player.y < p.y+p.h && this.player.y+this.player.h > p.y) {
+                   
+                if(p.t === 'SPIKE') { this.die(); return; }
+
+                let ox = (this.player.x+this.player.w/2)-(p.x+p.w/2);
+                let oy = (this.player.y+this.player.h/2)-(p.y+p.h/2);
+                let hw = (this.player.w+p.w)/2;
+                let hh = (this.player.h+p.h)/2;
+                
+                if(Math.abs(ox) <= hw && Math.abs(oy) <= hh) {
+                    let wy = hw * oy; let hx = hh * ox;
+                    if(wy > hx) {
+                        if(wy > -hx) { this.player.y=p.y+p.h; this.player.vy=0; }
+                        else { this.player.x=p.x-this.player.w; this.player.vx=0; }
+                    } else {
+                        if(wy > -hx) { this.player.x=p.x+p.w; this.player.vx=0; }
+                        else { this.player.y=p.y-this.player.h; this.player.vy=0; this.player.grounded=true; }
+                    }
+                }
+            }
+        }
+
+        if(Math.abs(this.player.x - this.exit.x) < 30 && Math.abs(this.player.y - this.exit.y) < 30) {
+            this.state = 'WIN';
+            AudioSys.win();
+            UI.showMsg("LEVEL COMPLETE");
+        }
+
+        this.cam.x += ((this.player.x - this.width*0.3) - this.cam.x) * 0.1;
+        this.cam.y += ((this.player.y - this.height*0.6) - this.cam.y) * 0.1;
+
+        for(let i=this.particles.length-1; i>=0; i--) {
+            let p = this.particles[i];
+            p.x+=p.vx; p.y+=p.vy; p.life--;
+            if(p.life<=0) this.particles.splice(i,1);
+        }
+    },
+
+    die: function() {
+        if(this.player.dead) return;
+        this.player.dead = true;
+        AudioSys.die();
+        for(let i=0; i<30; i++) this.spawnPart(this.player.x, this.player.y, '#f00');
+        setTimeout(() => this.loadLevel(this.lvl), 800);
+    },
+
+    draw: function() {
+        this.ctx.fillStyle = this.dim === 'REAL' ? '#111' : '#002222';
+        this.ctx.fillRect(0,0,this.width,this.height);
+        
+        this.ctx.save();
+        this.ctx.translate(-this.cam.x, -this.cam.y);
+
+        for(let p of this.platforms) {
+            if(p.r !== 'BOTH' && p.r !== this.dim) {
+                this.ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                this.ctx.strokeRect(p.x,p.y,p.w,p.h);
+                continue;
+            }
+            if(p.t === 'SPIKE') {
+                this.ctx.fillStyle = '#f05';
+                this.ctx.beginPath();
+                this.ctx.moveTo(p.x, p.y+p.h); this.ctx.lineTo(p.x+p.w/2, p.y); this.ctx.lineTo(p.x+p.w, p.y+p.h);
+                this.ctx.fill();
+            } else {
+                this.ctx.fillStyle = this.dim === 'REAL' ? '#444' : '#0ff';
+                if(this.dim==='SPIRIT') { this.ctx.shadowBlur=10; this.ctx.shadowColor='#0ff'; }
+                this.ctx.fillRect(p.x,p.y,p.w,p.h);
+                this.ctx.shadowBlur=0;
+            }
+        }
+
+        this.ctx.fillStyle = this.dim==='REAL'?'#fff':'#f05';
+        this.ctx.shadowBlur=20; this.ctx.shadowColor=this.ctx.fillStyle;
+        this.ctx.fillRect(this.exit.x, this.exit.y, this.exit.w, this.exit.h);
+        this.ctx.shadowBlur=0;
+
+        if(!this.player.dead) {
+            this.ctx.fillStyle = this.dim==='REAL'?'#000':'#033';
+            this.ctx.fillRect(this.player.x, this.player.y, this.player.w, this.player.h);
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillRect(this.player.x+(this.player.vx>0?20:5), this.player.y+10, 5, 5);
+        }
+
+        for(let p of this.particles) {
+            this.ctx.fillStyle = p.c;
+            this.ctx.fillRect(p.x, p.y, 4, 4);
+        }
+
+        this.ctx.restore();
+    },
+
+    loop: function() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(this.loop.bind(this));
+    }
+};
+
+// --- LEVEL GENERATOR ---
+const LevelGen = {
+    create: function(lvl) {
+        Game.platforms = [];
+        let cx=0, cy=400;
+        this.add(0, 500, 400, 200, 'BOTH');
+
+        if(lvl===1) {
+            this.add(500, 400, 200, 50, 'BOTH');
+            Game.exit = {x:600, y:340, w:40, h:60};
+        }
+        else if(lvl===2) {
+            this.add(400, 400, 100, 50, 'REAL');
+            this.add(600, 400, 200, 50, 'SPIRIT');
+            this.add(900, 350, 200, 50, 'BOTH');
+            Game.exit = {x:1000, y:290, w:40, h:60};
+        }
+        else if(lvl===3) {
+            this.add(400, 400, 200, 50, 'BOTH');
+            this.add(700, 200, 50, 400, 'REAL');
+            this.add(850, 400, 200, 50, 'BOTH');
+            Game.exit = {x:950, y:340, w:40, h:60};
+        } 
+        else {
+            cx = 400;
+            for(let i=0; i<10+(lvl*2); i++) {
+                let w = 100 + Math.random()*150;
+                let gap = 100 + Math.random()*100;
+                let h = 40;
+                let type = (Math.random()>0.8 && i>0) ? 'SPIKE' : 'NORM';
+                let realm = Math.random()>0.6 ? 'SPIRIT' : (Math.random()>0.3 ? 'REAL' : 'BOTH');
+                
+                cy += (Math.random()-0.5)*150;
+                if(cy > 500) cy=400; if(cy<200) cy=300;
+
+                this.add(cx+gap, cy, w, h, realm, type);
+                cx += gap+w;
+            }
+            this.add(cx+100, cy, 200, 50, 'BOTH');
+            Game.exit = {x:cx+150, y:cy-60, w:40, h:60};
+        }
+    },
+    add: function(x,y,w,h,r,t='NORM') {
+        Game.platforms.push({x,y,w,h,r,t});
+    }
+};
+
+// --- INPUT ---
+const Input = {
+    k: {l:false, r:false, u:false, s:false},
+    init: function() {
+        document.onkeydown = e => this.h(e, true);
+        document.onkeyup = e => this.h(e, false);
+        this.t('btn-left','l'); this.t('btn-right','r');
+        this.t('btn-jump','u'); this.t('btn-shift','s');
+    },
+    h: function(e, d) {
+        if(e.code==='ArrowLeft') this.k.l=d;
+        if(e.code==='ArrowRight') this.k.r=d;
+        if(e.code==='ArrowUp') this.k.u=d;
+        if(e.code==='Space') this.k.s=d;
+    },
+    t: function(id, k) {
+        let el = document.getElementById(id);
+        if(el) {
+            el.ontouchstart = e => { e.preventDefault(); this.k[k]=true; };
+            el.ontouchend = e => { e.preventDefault(); this.k[k]=false; };
+        }
+    }
+};
+
+Game.init();
+</script>
+
+</body></html>
+
+
